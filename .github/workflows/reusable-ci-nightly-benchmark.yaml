@@ -1110,9 +1110,6 @@ jobs:
         id: guide_standup
         run: |
           cd "$LLMDBENCH_CICD_BENCHMARK_PATH"
-          find $LLMDBENCH_CICD_REPO_PATH
-          echo
-          echo
           LLMDBENCH_CMD="llmdbenchmark --spec $LLMDBENCH_CICD_SCENARIO_DIR/$LLMDBENCH_CICD_SCENARIO $LLMDBENCH_EXTRA_CMD standup $LLMDBENCH_EXTRA_STANDUP_OPERATION_CMD --namespace $LLMDBENCH_CICD_NS --gateway-class $LLMDBENCH_CICD_GATEWAY_CLASS --release $LLMDBENCH_CICD_R --methods $LLMDBENCH_CICD_METHOD"
           echo "### $(cat "$LLMDBENCH_CICD_CMD_LOG"); $LLMDBENCH_CMD ###"
           eval "$LLMDBENCH_CMD"
