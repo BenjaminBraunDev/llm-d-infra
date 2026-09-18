@@ -911,7 +911,7 @@ jobs:
           lkcmd="yq -i \".scenario[0].kustomize.acceleratorBackend = \\\"$LLMDBENCH_CICD_BACKEND_ACCELERATOR\\\"\" $LLMDBENCH_CICD_SCENARIO_FILE"
           echo -n "; $lkcmd" >> "$LLMDBENCH_CICD_CMD_LOG"
           eval "$lkcmd"
-          cat $LLMDBENCH_CICD_SCENARIO_FILE | yq -r .scenario[].kustomize
+          yq -r .scenario[].kustomize "$LLMDBENCH_CICD_SCENARIO_FILE"
         shell: bash
 
       - name: Set harness executable
@@ -941,6 +941,9 @@ jobs:
           detected_model=$(kubectl kustomize "$LLMDBENCH_CICD_KUSTOMIZE_PATH" | yq .spec.template.spec.containers[0].args | sed 's^--model-path=^^g' | grep -Ev "\- \--|\- '|\---|\- \||    \--|.*exec vllm|'|null|#|\"|find|START_RANK" | sed -e 's^ ^^g' -e 's|^-||g' -e 's^\\^^g' -e '/^$/d' | uniq || true)
           if [[ -z $detected_model ]]; then
             detected_model=$(kubectl kustomize "$LLMDBENCH_CICD_KUSTOMIZE_PATH" | yq .spec.leaderWorkerTemplate.workerTemplate.spec.containers[0].args | sed 's^--model-path=^^g' | grep -Ev "\- \--|\- '|\---|\- \||    \--|.*exec vllm|'|null|#|\"|find|START_RANK" | sed -e 's^ ^^g' -e 's|^-||g' -e 's^\\^^g' -e '/^$/d' | uniq || true)
+          fi
+          if [[ -z $detected_model ]]; then
+            detected_model=$(kubectl kustomize "$LLMDBENCH_CICD_KUSTOMIZE_PATH" | yq .spec.roles[].spec.leaderWorkerTemplate.workerTemplate.spec.containers[0].args | sed 's^--model-path=^^g' | grep -Ev "\- \--|\- '|\---|\- \||    \--|.*exec vllm|'|null|#|\"|find|START_RANK" | sed -e 's^ ^^g' -e 's|^-||g' -e 's^\\^^g' -e '/^$/d' | uniq || true)
           fi
           if [[ -z $detected_model ]]; then
             echo "### ERROR: unable to detect model"
