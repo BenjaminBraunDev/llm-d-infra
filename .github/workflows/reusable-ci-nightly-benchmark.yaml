@@ -709,6 +709,34 @@ jobs:
           kubectl label node "$NODE" kubernetes.io/os=linux --overwrite
         shell: bash
 
+      - name: Check accelerator availability
+        id: infra_check_accelerator_availability
+        if: env.LLMDBENCH_CICD_TARGET != 'kind'
+        continue-on-error: true
+        run: |
+          # Label-only. This step never fails. It records whether any node
+          # currently exposes an accelerator so "Detect failure category" can
+          # tell a cluster with no accelerators apart from a broken guide.
+          accel_re='nvidia.com/gpu|amd.com/gpu|google.com/tpu|habana.ai/gaudi|intel.com/gpu|gpu.intel.com/i915|gpu.intel.com/xe'
+          if ! nodes_json=$(kubectl get nodes -o json 2>/dev/null); then
+            echo "::warning::Could not list nodes, skipping accelerator availability check"
+            echo "available=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node_accels=$(echo "$nodes_json" \
+            | jq -r --arg re "$accel_re" '[.items[].status.capacity // {} | to_entries[] | select(.key | test($re)) | select(((.value | tonumber?) // 0) > 0) | .key] | unique | join(",")' 2>/dev/null || true)
+          # DRA-managed accelerators (e.g. GKE a3u pools) are not in node capacity
+          dra_drivers=$(kubectl get resourceslices -o json 2>/dev/null \
+            | jq -r '[.items[].spec.driver | select(test("gpu\\.|tpu\\."))] | unique | join(",")' 2>/dev/null || true)
+          if [[ -n $node_accels || -n $dra_drivers ]]; then
+            echo "### Accelerators available: capacity=[${node_accels}] dra=[${dra_drivers}]"
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No accelerator resources or DRA ResourceSlices found on the cluster"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+
       - name: Set GCS full path
         id: prereq_set_gcs_full_path
         if: inputs.bucket_provider == 'gcs'
@@ -1288,6 +1316,9 @@ jobs:
           CATEGORY=""
           if [ "${{ steps.benchmark_run.outcome }}" = "failure" ]; then
             CATEGORY="benchmark"
+          elif [ "${{ steps.infra_request_tpus.outcome }}" = "failure" ] || \
+               [ "${{ steps.infra_check_accelerator_availability.outputs.available }}" = "false" ]; then
+            CATEGORY="capacity"
           elif [ "${{ steps.guide_standup.outcome }}" = "failure" ] || \
                [ "${{ steps.guide_teardown.outcome }}" = "failure" ] || \
                [ "${{ steps.guide_teardown_again.outcome }}" = "failure" ]; then
@@ -1310,7 +1341,6 @@ jobs:
                [ "${{ steps.infra_show_cluster_names.outcome }}" = "failure" ] || \
                [ "${{ steps.infra_show_cluster_nodes.outcome }}" = "failure" ] || \
                [ "${{ steps.infra_show_cluster_storageclasses.outcome }}" = "failure" ] || \
-               [ "${{ steps.infra_request_tpus.outcome }}" = "failure" ] || \
                [ "${{ steps.infra_create_nightly_prioclass.outcome }}" = "failure" ] || \
                [ "${{ steps.infra_label_node_for_simulated_accelerators.outcome }}" = "failure" ] || \
                [ "${{ steps.infra_handle_namesace_and_secret.outcome }}" = "failure" ] || \
