@@ -714,7 +714,7 @@ jobs:
         if: env.LLMDBENCH_CICD_TARGET != 'kind'
         continue-on-error: true
         run: |
-          # Never fails. Records whether the cluster has any accelerator so
+          # Diagnostic only, always exits 0. Records whether the cluster has any accelerator so
           # "Detect failure category" can label a missing pool as capacity.
           accel_re='nvidia.com/gpu|amd.com/gpu|google.com/tpu|habana.ai/gaudi|intel.com/gpu|gpu.intel.com/i915|gpu.intel.com/xe'
           if ! nodes_json=$(kubectl get nodes -o json 2>/dev/null); then
@@ -1161,7 +1161,7 @@ jobs:
         if: failure() && env.LLMDBENCH_CICD_TARGET != 'kind'
         continue-on-error: true
         run: |
-          # Never fails. Flags pods still Pending on an accelerator resource
+          # Diagnostic only, always exits 0. Flags pods still Pending on an accelerator resource
           # the scheduler reported as missing or exhausted.
           accel_re='Insufficient (nvidia\.com/gpu|amd\.com/gpu|google\.com/tpu|habana\.ai/gaudi|intel\.com/gpu|gpu\.intel\.com/[a-z0-9]+)|device class [a-z0-9.-]*(gpu|tpu)[a-z0-9.-]* does not exist'
           if ! pods_json=$(kubectl get pods -n "$LLMDBENCH_CICD_NS" -o json 2>/dev/null) \
