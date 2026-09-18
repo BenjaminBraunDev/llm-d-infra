@@ -714,9 +714,8 @@ jobs:
         if: env.LLMDBENCH_CICD_TARGET != 'kind'
         continue-on-error: true
         run: |
-          # Label-only. This step never fails. It records whether any node
-          # currently exposes an accelerator so "Detect failure category" can
-          # tell a cluster with no accelerators apart from a broken guide.
+          # Never fails. Records whether the cluster has any accelerator so
+          # "Detect failure category" can label a missing pool as capacity.
           accel_re='nvidia.com/gpu|amd.com/gpu|google.com/tpu|habana.ai/gaudi|intel.com/gpu|gpu.intel.com/i915|gpu.intel.com/xe'
           if ! nodes_json=$(kubectl get nodes -o json 2>/dev/null); then
             echo "::warning::Could not list nodes, skipping accelerator availability check"
@@ -725,7 +724,7 @@ jobs:
           fi
           node_accels=$(echo "$nodes_json" \
             | jq -r --arg re "$accel_re" '[.items[].status.capacity // {} | to_entries[] | select(.key | test($re)) | select(((.value | tonumber?) // 0) > 0) | .key] | unique | join(",")' 2>/dev/null || true)
-          # DRA-managed accelerators (e.g. GKE a3u pools) are not in node capacity
+          # DRA-managed accelerators are not in node capacity
           dra_drivers=$(kubectl get resourceslices -o json 2>/dev/null \
             | jq -r '[.items[].spec.driver | select(test("gpu\\.|tpu\\."))] | unique | join(",")' 2>/dev/null || true)
           if [[ -n $node_accels || -n $dra_drivers ]]; then
@@ -1162,12 +1161,8 @@ jobs:
         if: failure() && env.LLMDBENCH_CICD_TARGET != 'kind'
         continue-on-error: true
         run: |
-          # Label-only. This step never fails. After a failed standup it looks
-          # for pods that are still Pending because the cluster did not have
-          # enough accelerators, so "Detect failure category" can report
-          # capacity instead of guide. Only messages the scheduler emits for
-          # a missing or exhausted accelerator resource are matched, so a
-          # wrong nodeSelector or a bad image in a guide does not count.
+          # Never fails. Flags pods still Pending on an accelerator resource
+          # the scheduler reported as missing or exhausted.
           accel_re='Insufficient (nvidia\.com/gpu|amd\.com/gpu|google\.com/tpu|habana\.ai/gaudi|intel\.com/gpu|gpu\.intel\.com/[a-z0-9]+)|device class [a-z0-9.-]*(gpu|tpu)[a-z0-9.-]* does not exist'
           if ! pods_json=$(kubectl get pods -n "$LLMDBENCH_CICD_NS" -o json 2>/dev/null) \
              || ! events_json=$(kubectl get events -n "$LLMDBENCH_CICD_NS" --field-selector reason=FailedScheduling -o json 2>/dev/null); then
