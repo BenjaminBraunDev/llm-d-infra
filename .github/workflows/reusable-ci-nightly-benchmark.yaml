@@ -211,6 +211,16 @@ on:
         required: false
         type: 'string'
         default: '2400'
+      standup_attempts:
+        description: 'Number of attempts for the standup step before giving up'
+        required: false
+        type: 'string'
+        default: '3'
+      standup_retry_delay:
+        description: 'Delay in seconds between standup attempts'
+        required: false
+        type: 'string'
+        default: '60'
       persistent_model:
         description: 'Download model into a persistent storage'
         required: false
@@ -380,6 +390,8 @@ jobs:
       LLMDBENCH_CICD_KUSTOMIZE_STANDUP_TIMEOUT: ${{ inputs.standup_timeout || '2400' }}
       LLMDBENCH_CICD_MODELSERVICE_STANDUP_TIMEOUT: ${{ inputs.standup_timeout || '2400' }}
       LLMDBENCH_CICD_STANDALONE_STANDUP_TIMEOUT: ${{ inputs.standup_timeout || '2400' }}
+      LLMDBENCH_CICD_STANDUP_ATTEMPTS: ${{ inputs.standup_attempts || '2' }}
+      LLMDBENCH_CICD_STANDUP_RETRY_DELAY: ${{ inputs.standup_retry_delay || '60' }}
       LLMDBENCH_CICD_RUN_WAIT_TIMEOUT: ${{ inputs.wait_timeout || '3600' }}
       LLMDBENCH_CICD_RUN_PVC_BIND_TIMEOUT: ${{ inputs.pvc_bind_timeout || '1200' }}
       LLMDBENCH_CICD_DECODE_PODS: ${{ inputs.decode_pods || 'auto' }}
@@ -1142,8 +1154,20 @@ jobs:
         run: |
           cd "$LLMDBENCH_CICD_BENCHMARK_PATH"
           LLMDBENCH_CMD="llmdbenchmark --spec $LLMDBENCH_CICD_SCENARIO_DIR/${LLMDBENCH_CICD_SCENARIO//\//-} $LLMDBENCH_EXTRA_CMD standup $LLMDBENCH_EXTRA_STANDUP_OPERATION_CMD --namespace $LLMDBENCH_CICD_NS --gateway-class $LLMDBENCH_CICD_GATEWAY_CLASS --release $LLMDBENCH_CICD_R --methods $LLMDBENCH_CICD_METHOD"
-          echo "### $(cat "$LLMDBENCH_CICD_CMD_LOG"); $LLMDBENCH_CMD ###"
-          eval "$LLMDBENCH_CMD"
+          max_attempts=$LLMDBENCH_CICD_STANDUP_ATTEMPTS
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "### Standup attempt ${attempt}/${max_attempts}"
+            echo "### $(cat "$LLMDBENCH_CICD_CMD_LOG"); $LLMDBENCH_CMD ###"
+            if eval "$LLMDBENCH_CMD"; then
+              exit 0
+            fi
+            if [[ $attempt -lt $max_attempts ]]; then
+              echo "::warning::Standup attempt ${attempt}/${max_attempts} failed, retrying in ${LLMDBENCH_CICD_STANDUP_RETRY_DELAY}s"
+              sleep "$LLMDBENCH_CICD_STANDUP_RETRY_DELAY"
+            fi
+          done
+          echo "::error::Standup failed after ${max_attempts} attempts"
+          exit 1
         shell: bash
 
       - name: Debug info (on failure)
