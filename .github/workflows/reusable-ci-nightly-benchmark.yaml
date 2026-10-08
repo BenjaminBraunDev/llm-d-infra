@@ -1020,6 +1020,13 @@ jobs:
                   echo -n "$manifest ($kind, leaderTemplate): "; yq '.spec.leaderWorkerTemplate.leaderTemplate.spec.priorityClassName' "$manifest"
                 fi
                 ;;
+              DisaggregatedSet)
+                # One LeaderWorkerSet template per role (pd-disaggregation, wide-ep), so the same two
+                # paths as above, under .spec.roles[].spec.
+                PC="$LLMDBENCH_CICD_PRIORITY_CLASS" yq -i '.spec.roles[].spec.leaderWorkerTemplate.workerTemplate.spec.priorityClassName = env(PC)' "$manifest"
+                echo -n "$manifest ($kind, workerTemplate): "; yq '[.spec.roles[].spec.leaderWorkerTemplate.workerTemplate.spec.priorityClassName] | join(",")' "$manifest"
+                PC="$LLMDBENCH_CICD_PRIORITY_CLASS" yq -i '(.spec.roles[].spec.leaderWorkerTemplate | select(has("leaderTemplate")) | .leaderTemplate.spec.priorityClassName) = env(PC)' "$manifest"
+                ;;
               *)
                 continue
                 ;;
